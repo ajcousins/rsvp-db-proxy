@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "esnext", // Compile to the latest ECMAScript version
+    "module": "NodeNext", // Use ES modules
+    "moduleResolution": "NodeNext",
+    "strict": true, // Enable strict type-checking options
+    "esModuleInterop": true, // Enables CommonJS and AMD imports
+    "skipLibCheck": true, // Skip type checking of declaration files (*.d.ts)
+    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references to the same file.
+    "outDir": "./dist", // Output directory for compiled files
+    "rootDir": "./src", // Root directory of input files
+  },
+  "include": ["src/**/*"], // Include all files in the src directory
+  "exclude": ["node_modules"] // Exclude node_modules directory
+}

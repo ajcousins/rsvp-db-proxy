@@ -1,0 +1,50 @@
+name: Deploy Lambda Function and API Gateway
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+      - run: yarn install
+      - run: yarn tsc
+      - run: cp -R node_modules ./dist/node_modules
+      - run: cd dist && zip -r ../lambda_function.zip .
+      - run: aws lambda update-function-code --function-name rsvp-db-proxy --zip-file fileb://lambda_function.zip
+      
+      # New steps for API Gateway setup
+      - name: Create API Gateway
+        id: api-gateway
+        run: |
+          API_ID=$(aws apigatewayv2 create-api --name rsvp-db-proxy-API --protocol-type HTTP --description "RSVP DB Proxy API" --query 'ApiId' --output text)
+          echo "::set-output name=api_id::$API_ID"
+      
+      - name: Create Routes
+        run: |
+          aws apigatewayv2 create-route --api-id ${{ steps.api-gateway.outputs.api_id }} --route-key GET /landing-tiles --integration-uri arn:aws:apigateway:eu-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-2:${{ github.actor }}:function:rsvp-db-proxy/invocations
+          aws apigatewayv2 create-route --api-id ${{ steps.api-gateway.outputs.api_id }} --route-key GET /gallery --integration-uri arn:aws:apigateway:eu-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-2:${{ github.actor }}:function:rsvp-db-proxy/invocations
+      
+      - name: Create Integrations
+        run: |
+          aws apigatewayv2 create-integration --api-id ${{ steps.api-gateway.outputs.api_id }} --integration-type AWS_PROXY --integration-uri arn:aws:apigateway:eu-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-2:${{ github.actor }}:function:rsvp-db-proxy/invocations --integration-method GET
+          aws apigatewayv2 create-integration --api-id ${{ steps.api-gateway.outputs.api_id }} --integration-type AWS_PROXY --integration-uri arn:aws:apigateway:eu-west-2:lambda:path/2015-03-31/functions/arn:aws:lambda:eu-west-2:${{ github.actor }}:function:rsvp-db-proxy/invocations --integration-method GET
+      
+      - name: Deploy API
+        run: aws apigatewayv2 create-deployment --api-id ${{ steps.api-gateway.outputs.api_id }} --auto-deploy
+      
+      - name: Output API Endpoints
+        run: |
+          echo "API Endpoint for landing tiles: https://${{ steps.api-gateway.outputs.api_id }}.execute-api.eu-west-2.amazonaws.com/landing-tiles"
+          echo "API Endpoint for gallery: https://${{ steps.api-gateway.outputs.api_id }}.execute-api.eu-west-2.amazonaws.com/gallery"
